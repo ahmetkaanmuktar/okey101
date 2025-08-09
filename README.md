@@ -5,7 +5,6 @@ Modern, mobil uyumlu, şık tasarımlı okey oyunu için skor takip uygulaması.
 ## 🌟 Özellikler
 
 ### 🎮 Oyun Modları
-- **2 Oyuncu (1v1)**: Klasik ikili oyun
 - **4 Oyuncu (Tekli)**: Dörtlü bireysel oyun  
 - **Eşli (2v2)**: Takım bazında oyun
 
@@ -33,7 +32,7 @@ Modern, mobil uyumlu, şık tasarımlı okey oyunu için skor takip uygulaması.
 ## 🚀 Kullanım
 
 ### Hızlı Başlangıç
-1. Oyun modunu seçin (2 oyuncu, 4 oyuncu, eşli)
+1. Oyun modunu seçin (4 oyuncu, eşli)
 2. Hedef el sayısını belirleyin (7, 11, 15)
 3. Oyuncu/takım isimlerini girin
 4. "Başlat" butonuna tıklayın
@@ -48,6 +47,7 @@ Modern, mobil uyumlu, şık tasarımlı okey oyunu için skor takip uygulaması.
 - **Pozitif Değerler**: 0-999 arası
 - **Negatif Değer**: Sadece -101
 - **-101 Butonu**: Hızlı toggle (bas/kaldır)
+- **Siler -101 Butonu**: Başlıklarda hızlı ceza ekleme
 
 ## 🎨 Tasarım Özellikleri
 

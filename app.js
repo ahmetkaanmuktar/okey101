@@ -4,7 +4,6 @@
 // Constants
 const STORAGE_KEY = 'okey-adisyon-state-v1';
 const MODES = {
-  two: { name: '2 Oyuncu', participants: ['p0', 'p1'] },
   solo4: { name: '4 Oyuncu', participants: ['p0', 'p1', 'p2', 'p3'] },
   teams2v2: { name: 'Eşli 2v2', participants: ['A', 'B'] }
 };
@@ -12,12 +11,10 @@ const MODES = {
 // Global State
 let state = {
   settings: {
-    mode: 'two',
+    mode: 'solo4',
     target: 11,
-    namesTwo: ['Oyuncu 1', 'Oyuncu 2'],
     namesSolo4: ['Oyuncu 1', 'Oyuncu 2', 'Oyuncu 3', 'Oyuncu 4'],
-    teamNames: { A: 'Takım A', B: 'Takım B' },
-    teamPlayers: { A: ['', ''], B: ['', ''] }
+    teamNames: { A: 'Takım A', B: 'Takım B' }
   },
   rows: [],
   penalties: [],
@@ -83,12 +80,10 @@ function loadState() {
 function resetState() {
   state = {
     settings: {
-      mode: 'two',
+      mode: 'solo4',
       target: 11,
-      namesTwo: ['Oyuncu 1', 'Oyuncu 2'],
       namesSolo4: ['Oyuncu 1', 'Oyuncu 2', 'Oyuncu 3', 'Oyuncu 4'],
-      teamNames: { A: 'Takım A', B: 'Takım B' },
-      teamPlayers: { A: ['', ''], B: ['', ''] }
+      teamNames: { A: 'Takım A', B: 'Takım B' }
     },
     rows: [],
     penalties: [],
@@ -105,11 +100,9 @@ function getParticipants() {
 }
 
 function getParticipantName(id) {
-  const { mode, namesTwo, namesSolo4, teamNames } = state.settings;
+  const { mode, namesSolo4, teamNames } = state.settings;
   
-  if (mode === 'two') {
-    return namesTwo[parseInt(id.replace('p', ''))];
-  } else if (mode === 'solo4') {
+  if (mode === 'solo4') {
     return namesSolo4[parseInt(id.replace('p', ''))];
   } else if (mode === 'teams2v2') {
     return teamNames[id];
@@ -190,14 +183,11 @@ function updateModeVisibility() {
   const mode = state.settings.mode;
   
   // Hide all name groups
-  elements.namesTwo.style.display = 'none';
   elements.namesSolo4.style.display = 'none';
   elements.namesTeams.style.display = 'none';
   
   // Show relevant name group
-  if (mode === 'two') {
-    elements.namesTwo.style.display = 'block';
-  } else if (mode === 'solo4') {
+  if (mode === 'solo4') {
     elements.namesSolo4.style.display = 'block';
   } else if (mode === 'teams2v2') {
     elements.namesTeams.style.display = 'block';
@@ -213,12 +203,7 @@ function updateSettingsFromForm() {
   state.settings.target = parseInt(elements.targetSelect.value);
   
   // Get names based on mode
-  if (state.settings.mode === 'two') {
-    state.settings.namesTwo = [
-      elements.nameP0.value.trim() || 'Oyuncu 1',
-      elements.nameP1.value.trim() || 'Oyuncu 2'
-    ];
-  } else if (state.settings.mode === 'solo4') {
+  if (state.settings.mode === 'solo4') {
     state.settings.namesSolo4 = [
       elements.nameS0.value.trim() || 'Oyuncu 1',
       elements.nameS1.value.trim() || 'Oyuncu 2',
@@ -229,16 +214,6 @@ function updateSettingsFromForm() {
     state.settings.teamNames = {
       A: elements.nameTeamA.value.trim() || 'Takım A',
       B: elements.nameTeamB.value.trim() || 'Takım B'
-    };
-    state.settings.teamPlayers = {
-      A: [
-        elements.nameTeamAP1.value.trim(),
-        elements.nameTeamAP2.value.trim()
-      ],
-      B: [
-        elements.nameTeamBP1.value.trim(),
-        elements.nameTeamBP2.value.trim()
-      ]
     };
   }
 }
@@ -252,11 +227,6 @@ function populateSettingsForm() {
   elements.targetSelect.value = state.settings.target;
   
   // Set names
-  if (state.settings.namesTwo) {
-    elements.nameP0.value = state.settings.namesTwo[0];
-    elements.nameP1.value = state.settings.namesTwo[1];
-  }
-  
   if (state.settings.namesSolo4) {
     elements.nameS0.value = state.settings.namesSolo4[0];
     elements.nameS1.value = state.settings.namesSolo4[1];
@@ -267,13 +237,6 @@ function populateSettingsForm() {
   if (state.settings.teamNames) {
     elements.nameTeamA.value = state.settings.teamNames.A;
     elements.nameTeamB.value = state.settings.teamNames.B;
-  }
-  
-  if (state.settings.teamPlayers) {
-    elements.nameTeamAP1.value = state.settings.teamPlayers.A[0] || '';
-    elements.nameTeamAP2.value = state.settings.teamPlayers.A[1] || '';
-    elements.nameTeamBP1.value = state.settings.teamPlayers.B[0] || '';
-    elements.nameTeamBP2.value = state.settings.teamPlayers.B[1] || '';
   }
   
   updateModeVisibility();
@@ -304,8 +267,8 @@ function renderTable() {
     
     const penaltyBtn = document.createElement('button');
     penaltyBtn.className = 'penalty-btn';
-    penaltyBtn.textContent = 'Siler Ekle';
-    penaltyBtn.onclick = () => openPenaltyModal(participantId);
+    penaltyBtn.textContent = 'Siler -101';
+    penaltyBtn.onclick = () => addQuickPenalty(participantId);
     headerDiv.appendChild(penaltyBtn);
     
     th.appendChild(headerDiv);
@@ -797,10 +760,7 @@ function handlePrint() {
 
 function handleDemo() {
   // Fill with demo data
-  if (state.settings.mode === 'two') {
-    elements.nameP0.value = 'Ahmet';
-    elements.nameP1.value = 'Mehmet';
-  } else if (state.settings.mode === 'solo4') {
+  if (state.settings.mode === 'solo4') {
     elements.nameS0.value = 'Ahmet';
     elements.nameS1.value = 'Mehmet';
     elements.nameS2.value = 'Ayşe';
@@ -808,13 +768,27 @@ function handleDemo() {
   } else if (state.settings.mode === 'teams2v2') {
     elements.nameTeamA.value = 'Anadolu';
     elements.nameTeamB.value = 'Fenerbahçe';
-    elements.nameTeamAP1.value = 'Ahmet';
-    elements.nameTeamAP2.value = 'Mehmet';
-    elements.nameTeamBP1.value = 'Ayşe';
-    elements.nameTeamBP2.value = 'Fatma';
   }
   
   elements.targetSelect.value = '7';
+}
+
+// Penalty Functions
+function addQuickPenalty(participantId) {
+  const penalty = {
+    id: generateId(),
+    target: participantId,
+    value: -101,
+    note: 'Hızlı siler',
+    createdAt: new Date().toISOString()
+  };
+  
+  state.penalties.push(penalty);
+  saveState();
+  updateTotals();
+  
+  // Show notification (optional)
+  console.log(`${getParticipantName(participantId)} için -101 siler eklendi`);
 }
 
 // Penalty Modal Functions
@@ -956,22 +930,15 @@ function initializeElements() {
     demoBtn: document.getElementById('demo-btn'),
     
     // Names
-    namesTwo: document.getElementById('names-two'),
     namesSolo4: document.getElementById('names-solo4'),
     namesTeams: document.getElementById('names-teams'),
     
-    nameP0: document.getElementById('name-p0'),
-    nameP1: document.getElementById('name-p1'),
     nameS0: document.getElementById('name-s0'),
     nameS1: document.getElementById('name-s1'),
     nameS2: document.getElementById('name-s2'),
     nameS3: document.getElementById('name-s3'),
     nameTeamA: document.getElementById('name-teamA'),
     nameTeamB: document.getElementById('name-teamB'),
-    nameTeamAP1: document.getElementById('name-teamA-p1'),
-    nameTeamAP2: document.getElementById('name-teamA-p2'),
-    nameTeamBP1: document.getElementById('name-teamB-p1'),
-    nameTeamBP2: document.getElementById('name-teamB-p2'),
     
     // Game
     gameSection: document.getElementById('game-section'),

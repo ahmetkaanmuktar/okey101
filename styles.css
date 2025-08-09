@@ -295,18 +295,7 @@ body {
   grid-template-columns: repeat(2, 1fr);
 }
 
-.team-players {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-lg);
-  margin-top: var(--spacing-md);
-}
 
-.team-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
 
 /* Button Components */
 .btn {
@@ -972,9 +961,7 @@ body {
     grid-template-columns: 1fr;
   }
   
-  .team-players {
-    grid-template-columns: 1fr;
-  }
+
   
   .form-actions {
     flex-direction: column;
