@@ -53,6 +53,37 @@ function debounce(func, wait) {
   };
 }
 
+function validateRowData(row) {
+  if (!row || !Array.isArray(row.values)) {
+    return false;
+  }
+  
+  const participants = getParticipants();
+  if (row.values.length !== participants.length) {
+    return false;
+  }
+  
+  return true;
+}
+
+function sanitizeInput(value) {
+  if (value === '' || value === null || value === undefined) {
+    return null;
+  }
+  
+  const numValue = parseInt(value);
+  if (isNaN(numValue)) {
+    return null;
+  }
+  
+  // Limit values to reasonable range
+  if (numValue < -101 || numValue > 999) {
+    return null;
+  }
+  
+  return numValue;
+}
+
 // State Management
 function saveState() {
   try {
@@ -332,9 +363,59 @@ function renderTable() {
     elements.tableBody.appendChild(tr);
   });
   
-  // Add current row if game not complete
+  // Add current row if game not complete and no current row exists
   if (!isGameComplete()) {
-    addNewRow();
+    const currentHandNumber = getCurrentHandNumber();
+    const hasCurrentRow = state.rows.find(row => row.hand === currentHandNumber);
+    
+    if (!hasCurrentRow) {
+      // Add new row to state
+      state.rows.push({
+        hand: currentHandNumber,
+        values: new Array(participants.length).fill(null)
+      });
+      
+      // Render the new row
+      const tr = document.createElement('tr');
+      
+      // Hand number
+      const handTd = document.createElement('td');
+      handTd.innerHTML = `<div class="hand-number">${currentHandNumber}</div>`;
+      tr.appendChild(handTd);
+      
+      // Score cells
+      participants.forEach((participantId, colIndex) => {
+        const td = document.createElement('td');
+        td.className = 'score-cell';
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'score-input';
+        input.min = '-101';
+        input.max = '999';
+        input.step = '1';
+        input.value = '';
+        input.dataset.row = state.rows.length - 1;
+        input.dataset.col = colIndex;
+        
+        input.addEventListener('input', handleScoreInput);
+        input.addEventListener('keydown', handleScoreKeydown);
+        
+        // -101 button
+        const minus101Btn = document.createElement('button');
+        minus101Btn.className = 'minus-101-btn';
+        minus101Btn.textContent = '-101';
+        minus101Btn.dataset.row = state.rows.length - 1;
+        minus101Btn.dataset.col = colIndex;
+        minus101Btn.onclick = handleMinus101Click;
+        
+        td.appendChild(input);
+        td.appendChild(minus101Btn);
+        tr.appendChild(td);
+      });
+      
+      elements.tableBody.appendChild(tr);
+    }
   }
 }
 
@@ -342,62 +423,19 @@ function addNewRow() {
   const participants = getParticipants();
   const handNumber = getCurrentHandNumber();
   
-  // Add to state if not exists
-  if (!state.rows.find(row => row.hand === handNumber)) {
-    state.rows.push({
-      hand: handNumber,
-      values: new Array(participants.length).fill(null)
-    });
+  // Check if this row already exists
+  if (state.rows.find(row => row.hand === handNumber)) {
+    return; // Row already exists, don't add again
   }
   
-  const currentRow = state.rows[state.rows.length - 1];
-  const tr = document.createElement('tr');
-  
-  // Hand number
-  const handTd = document.createElement('td');
-  handTd.innerHTML = `<div class="hand-number">${handNumber}</div>`;
-  tr.appendChild(handTd);
-  
-  // Score cells
-  participants.forEach((participantId, colIndex) => {
-    const td = document.createElement('td');
-    td.className = 'score-cell';
-    
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'score-input';
-    input.min = '-101';
-    input.max = '999';
-    input.step = '1';
-    input.value = currentRow.values[colIndex] || '';
-    input.dataset.row = state.rows.length - 1;
-    input.dataset.col = colIndex;
-    
-    if (currentRow.values[colIndex] < 0) {
-      input.classList.add('negative');
-    }
-    
-    input.addEventListener('input', handleScoreInput);
-    input.addEventListener('keydown', handleScoreKeydown);
-    
-    // -101 button
-    const minus101Btn = document.createElement('button');
-    minus101Btn.className = 'minus-101-btn';
-    minus101Btn.textContent = '-101';
-    minus101Btn.dataset.row = state.rows.length - 1;
-    minus101Btn.dataset.col = colIndex;
-    minus101Btn.onclick = handleMinus101Click;
-    
-    if (currentRow.values[colIndex] === -101) {
-      minus101Btn.classList.add('active');
-    }
-    
-    td.appendChild(input);
-    td.appendChild(minus101Btn);
-    tr.appendChild(td);
+  // Add to state
+  state.rows.push({
+    hand: handNumber,
+    values: new Array(participants.length).fill(null)
   });
   
-  elements.tableBody.appendChild(tr);
+  // Render the table to show the new row
+  renderTable();
 }
 
 function updateTotals() {
@@ -482,34 +520,39 @@ function handleScoreInput(event) {
   const rowIndex = parseInt(input.dataset.row);
   const colIndex = parseInt(input.dataset.col);
   
-  let value = input.value.trim();
+  // Validate row index
+  if (rowIndex < 0 || rowIndex >= state.rows.length) {
+    console.error('Invalid row index:', rowIndex);
+    return;
+  }
   
-  if (value === '') {
-    state.rows[rowIndex].values[colIndex] = null;
+  // Validate row data
+  if (!validateRowData(state.rows[rowIndex])) {
+    console.error('Invalid row data at index:', rowIndex);
+    return;
+  }
+  
+  let value = input.value.trim();
+  const sanitizedValue = sanitizeInput(value);
+  
+  // Update state
+  state.rows[rowIndex].values[colIndex] = sanitizedValue;
+  
+  // Update visual styling
+  if (sanitizedValue !== null && sanitizedValue < 0) {
+    input.classList.add('negative');
   } else {
-    const numValue = parseInt(value);
-    if (!isNaN(numValue) && numValue >= -101 && numValue <= 999) {
-      state.rows[rowIndex].values[colIndex] = numValue;
-      
-      // Update visual styling
-      if (numValue < 0) {
-        input.classList.add('negative');
-      } else {
-        input.classList.remove('negative');
-      }
-    } else {
-      // Invalid input, revert
-      input.value = state.rows[rowIndex].values[colIndex] || '';
-      return;
-    }
+    input.classList.remove('negative');
   }
   
   // Update -101 button state
   const minus101Btn = input.parentElement.querySelector('.minus-101-btn');
-  if (state.rows[rowIndex].values[colIndex] === -101) {
-    minus101Btn.classList.add('active');
-  } else {
-    minus101Btn.classList.remove('active');
+  if (minus101Btn) {
+    if (sanitizedValue === -101) {
+      minus101Btn.classList.add('active');
+    } else {
+      minus101Btn.classList.remove('active');
+    }
   }
   
   saveState();
@@ -521,16 +564,29 @@ function handleScoreInput(event) {
     updateMilestone();
     checkWinner();
     
-    // Add new row if game not complete
-    if (!isGameComplete()) {
-      setTimeout(() => {
-        addNewRow();
-        // Focus first input of new row
-        const newRowInputs = elements.tableBody.querySelectorAll(`input[data-row="${state.rows.length - 1}"]`);
-        if (newRowInputs.length > 0) {
-          newRowInputs[0].focus();
-        }
-      }, 100);
+    // Add new row if game not complete and this is the last row
+    if (!isGameComplete() && rowIndex === state.rows.length - 1) {
+      // Add new row to state first
+      const participants = getParticipants();
+      const newHandNumber = getCurrentHandNumber();
+      
+      // Check if we already have this row
+      if (!state.rows.find(row => row.hand === newHandNumber)) {
+        state.rows.push({
+          hand: newHandNumber,
+          values: new Array(participants.length).fill(null)
+        });
+        
+        // Render the new row
+        setTimeout(() => {
+          renderTable();
+          // Focus first input of new row
+          const newRowInputs = elements.tableBody.querySelectorAll(`input[data-row="${state.rows.length - 1}"]`);
+          if (newRowInputs.length > 0) {
+            newRowInputs[0].focus();
+          }
+        }, 100);
+      }
     }
   }
 }
@@ -631,12 +687,16 @@ function handleStartGame() {
   state.gameStarted = true;
   state.startedAt = new Date().toISOString();
   
+  // Initialize first row
+  state.rows = [{
+    hand: 1,
+    values: new Array(participants.length).fill(null)
+  }];
+  
   // Hide settings, show game
   elements.settingsCard.style.display = 'none';
   elements.gameSection.style.display = 'block';
   
-  // Initialize first row
-  state.rows = [];
   renderTable();
   updateTotals();
   
@@ -686,6 +746,11 @@ function handleUndo() {
     const participants = getParticipants();
     state.rows[lastCompletedRowIndex].values = new Array(participants.length).fill(null);
     
+    // Remove any rows after the incomplete row
+    if (lastCompletedRowIndex < state.rows.length - 1) {
+      state.rows = state.rows.slice(0, lastCompletedRowIndex + 1);
+    }
+    
     saveState();
     renderTable();
     updateTotals();
@@ -707,16 +772,28 @@ function handleUndo() {
 function handleAddHand() {
   if (isGameComplete()) return;
   
-  addNewRow();
-  saveState();
+  // Add new row to state
+  const participants = getParticipants();
+  const newHandNumber = getCurrentHandNumber();
   
-  // Focus first input of new row
-  setTimeout(() => {
-    const newRowInputs = elements.tableBody.querySelectorAll(`input[data-row="${state.rows.length - 1}"]`);
-    if (newRowInputs.length > 0) {
-      newRowInputs[0].focus();
-    }
-  }, 100);
+  // Check if this row already exists
+  if (!state.rows.find(row => row.hand === newHandNumber)) {
+    state.rows.push({
+      hand: newHandNumber,
+      values: new Array(participants.length).fill(null)
+    });
+    
+    saveState();
+    renderTable();
+    
+    // Focus first input of new row
+    setTimeout(() => {
+      const newRowInputs = elements.tableBody.querySelectorAll(`input[data-row="${state.rows.length - 1}"]`);
+      if (newRowInputs.length > 0) {
+        newRowInputs[0].focus();
+      }
+    }, 100);
+  }
 }
 
 function handleThemeToggle() {
