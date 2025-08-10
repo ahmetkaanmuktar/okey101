@@ -364,7 +364,7 @@ function renderTable() {
   });
   
   // Add current row if game not complete and no current row exists
-  if (!isGameComplete()) {
+  if (!isGameComplete() && state.rows.length > 0) {
     const currentHandNumber = getCurrentHandNumber();
     const hasCurrentRow = state.rows.find(row => row.hand === currentHandNumber);
     
@@ -564,30 +564,9 @@ function handleScoreInput(event) {
     updateMilestone();
     checkWinner();
     
-    // Add new row if game not complete and this is the last row
-    if (!isGameComplete() && rowIndex === state.rows.length - 1) {
-      // Add new row to state first
-      const participants = getParticipants();
-      const newHandNumber = getCurrentHandNumber();
-      
-      // Check if we already have this row
-      if (!state.rows.find(row => row.hand === newHandNumber)) {
-        state.rows.push({
-          hand: newHandNumber,
-          values: new Array(participants.length).fill(null)
-        });
-        
-        // Render the new row
-        setTimeout(() => {
-          renderTable();
-          // Focus first input of new row
-          const newRowInputs = elements.tableBody.querySelectorAll(`input[data-row="${state.rows.length - 1}"]`);
-          if (newRowInputs.length > 0) {
-            newRowInputs[0].focus();
-          }
-        }, 100);
-      }
-    }
+    // Don't add new row here - renderTable will handle it
+    // Just re-render to show the current state
+    renderTable();
   }
 }
 
