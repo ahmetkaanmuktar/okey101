@@ -1642,10 +1642,9 @@ async function handleJoinTable() {
     let tableId = null;
     
     if (useFirestore) {
-      // Search in Firestore with optimized query
+      // Search in Firestore
       const querySnapshot = await db.collection('tables')
         .where('name', '==', tableName)
-        .select('id', 'password') // Only fetch needed fields
         .limit(1)
         .get();
       
