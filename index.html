@@ -95,11 +95,11 @@
         <!-- Join Table Card -->
         <div id="join-table-card" class="card settings-card" style="display: none;">
             <h2>🚪 Masaya Katıl</h2>
-            <p class="form-description">Masa ID'si ile masaya katılın</p>
+            <p class="form-description">Masa adı ve şifre ile katılın</p>
             
             <div class="form-group">
-                <label for="join-table-id" class="form-label">Masa ID'si</label>
-                <input type="text" id="join-table-id" class="form-input" placeholder="Masa ID'sini girin" maxlength="20">
+                <label for="join-table-name" class="form-label">Masa Adı</label>
+                <input type="text" id="join-table-name" class="form-input" placeholder="Masa adını girin" maxlength="30">
             </div>
 
             <div class="form-group">
@@ -243,12 +243,8 @@
             <div id="table-info" class="card table-info-card" style="display: none;">
                 <div class="table-info-content">
                     <div class="table-info-item">
-                        <span class="table-info-label">Masa ID:</span>
-                        <span id="current-table-id" class="table-info-value">-</span>
-                        <button id="copy-table-id-btn" class="btn btn-ghost btn-small">
-                            <span class="icon">📋</span>
-                            Kopyala
-                        </button>
+                        <span class="table-info-label">Masa:</span>
+                        <span id="current-table-name" class="table-info-value">-</span>
                     </div>
                     <div class="table-info-item">
                         <span id="table-player-count" class="table-info-status">Oyunda: 0/4 kişi</span>

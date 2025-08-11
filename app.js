@@ -1537,7 +1537,7 @@ async function handleCreateTable() {
     elements.gameSection.style.display = 'block';
     
     // Show table info and player status
-    showTableInfo(tableId);
+    showTableInfo(tableId, tableName);
     updatePlayerStatus();
     updatePlayerCounts();
     
@@ -1546,7 +1546,7 @@ async function handleCreateTable() {
     
     saveState();
     
-    alert(`Masa "${tableName}" oluşturuldu!\nMasa ID: ${tableId}\nDiğer oyuncular bu ID ile katılabilir.`);
+    alert(`Masa "${tableName}" oluşturuldu!\nDiğer oyuncular masa adı ve şifre ile katılabilir.`);
     
     // Start Firestore listener if available
     if (useFirestore) {
@@ -1559,13 +1559,13 @@ async function handleCreateTable() {
 }
 
 async function handleJoinTable() {
-  const tableId = elements.joinTableId.value.trim();
+  const tableName = elements.joinTableName.value.trim();
   const password = elements.joinTablePassword.value.trim();
   const playerNumber = parseInt(elements.playerNumber.value);
   
-  if (!tableId) {
-    alert('Lütfen masa ID\'sini girin.');
-    elements.joinTableId.focus();
+  if (!tableName) {
+    alert('Lütfen masa adını girin.');
+    elements.joinTableName.focus();
     return;
   }
   
@@ -1582,7 +1582,32 @@ async function handleJoinTable() {
   }
   
   try {
-    // Use Firestore if available, otherwise localStorage
+    // Find table by name
+    let tableId = null;
+    
+    if (useFirestore) {
+      // Search in Firestore
+      const querySnapshot = await db.collection('tables')
+        .where('name', '==', tableName)
+        .limit(1)
+        .get();
+      
+      if (!querySnapshot.empty) {
+        tableId = querySnapshot.docs[0].id;
+      }
+    } else {
+      // Search in localStorage
+      tableId = Object.keys(tables).find(id => 
+        tables[id].name.toLowerCase() === tableName.toLowerCase()
+      );
+    }
+    
+    if (!tableId) {
+      alert('Bu isimde masa bulunamadı.');
+      return;
+    }
+    
+    // Join the table
     const table = useFirestore ? 
       await fsJoinTableById(tableId, playerNumber, password) : 
       joinTableById(tableId, playerNumber, password);
@@ -1600,13 +1625,13 @@ async function handleJoinTable() {
     elements.gameSection.style.display = 'block';
     
     // Show table info and player status
-    showTableInfo(tableId);
+    showTableInfo(tableId, tableName);
     updatePlayerStatus();
     updatePlayerCounts();
     
     saveState();
     
-    alert(`Masaya başarıyla katıldınız!\nMasa ID: ${tableId}`);
+    alert(`"${tableName}" masasına başarıyla katıldınız!`);
     
     // Start Firestore listener if available
     if (useFirestore) {
@@ -1618,10 +1643,17 @@ async function handleJoinTable() {
   }
 }
 
-function showTableInfo(tableId) {
-  if (elements.tableInfo && elements.currentTableId) {
+function showTableInfo(tableId, tableName = null) {
+  if (elements.tableInfo && elements.currentTableName) {
     elements.tableInfo.style.display = 'block';
-    elements.currentTableId.textContent = tableId;
+    
+    // Show table name if provided, otherwise get from tables
+    if (tableName) {
+      elements.currentTableName.textContent = tableName;
+    } else {
+      const table = tables[tableId];
+      elements.currentTableName.textContent = table ? table.name : tableId;
+    }
     
     // Show start game button only for host
     if (state.isTableHost && elements.startTableGameBtn) {
@@ -1630,21 +1662,7 @@ function showTableInfo(tableId) {
   }
 }
 
-function handleCopyTableId() {
-  const tableId = elements.currentTableId.textContent;
-  if (tableId && tableId !== '-') {
-    navigator.clipboard.writeText(tableId).then(() => {
-      // Visual feedback
-      const originalText = elements.copyTableIdBtn.innerHTML;
-      elements.copyTableIdBtn.innerHTML = '<span class="icon">✅</span> Kopyalandı';
-      setTimeout(() => {
-        elements.copyTableIdBtn.innerHTML = originalText;
-      }, 2000);
-    }).catch(() => {
-      alert('Masa ID kopyalanamadı. Manuel olarak kopyalayın: ' + tableId);
-    });
-  }
-}
+
 
 function handleStartTableGame() {
   if (!state.currentTable || !state.isTableHost) {
@@ -1770,7 +1788,7 @@ function initializeElements() {
     
     // Join Table
     joinTableCard: document.getElementById('join-table-card'),
-    joinTableId: document.getElementById('join-table-id'),
+    joinTableName: document.getElementById('join-table-name'),
     joinTablePassword: document.getElementById('join-table-password'),
     playerNumber: document.getElementById('player-number'),
     joinTableConfirmBtn: document.getElementById('join-table-confirm-btn'),
@@ -1778,8 +1796,7 @@ function initializeElements() {
     
     // Table Info
     tableInfo: document.getElementById('table-info'),
-    currentTableId: document.getElementById('current-table-id'),
-    copyTableIdBtn: document.getElementById('copy-table-id-btn'),
+    currentTableName: document.getElementById('current-table-name'),
     startTableGameBtn: document.getElementById('start-table-game-btn'),
     
     // Player Status
@@ -1852,7 +1869,6 @@ function initializeEventListeners() {
   elements.backToMainFromJoinBtn.addEventListener('click', handleBackToMainMenu);
   
   // Table Info
-  elements.copyTableIdBtn.addEventListener('click', handleCopyTableId);
   elements.startTableGameBtn.addEventListener('click', handleStartTableGame);
   
   // Mode change
