@@ -189,6 +189,7 @@ async function fsJoinTableById(tableId, playerNumber, password) {
   if (!useFirestore) return joinTableById(tableId, playerNumber, password);
   
   try {
+    console.log('Masaya katılmaya çalışılıyor:', tableId, playerNumber);
     const tableDoc = await db.collection('tables').doc(tableId).get();
     
     if (!tableDoc.exists) {
@@ -196,9 +197,18 @@ async function fsJoinTableById(tableId, playerNumber, password) {
     }
     
     const table = tableDoc.data();
+    console.log('Masa verisi:', table);
+    
+    if (!table || !table.password) {
+      throw new Error('Masa verisi eksik veya hatalı');
+    }
     
     if (table.password !== password) {
       throw new Error('Yanlış şifre');
+    }
+    
+    if (!table.players || !table.players[playerNumber]) {
+      throw new Error('Oyuncu pozisyonu bulunamadı');
     }
     
     if (table.players[playerNumber].online) {
@@ -1646,8 +1656,10 @@ async function handleJoinTable() {
   }
   
   try {
+    console.log('Masa arama başlatıldı:', tableName);
     // Find table by name
     let tableId = null;
+    let foundTable = null;
     
     if (useFirestore) {
       // Search in Firestore by table name
@@ -1655,30 +1667,46 @@ async function handleJoinTable() {
       const query = tablesRef.where('name', '==', tableName);
       const querySnapshot = await query.get();
       
+      console.log('Firestore sorgu sonucu:', querySnapshot.size, 'masa bulundu');
+      
       if (!querySnapshot.empty) {
-        tableId = querySnapshot.docs[0].id;
+        const doc = querySnapshot.docs[0];
+        tableId = doc.id;
+        foundTable = doc.data();
+        console.log('Bulunan masa:', tableId, foundTable);
       }
     } else {
       // Search in localStorage
       tableId = Object.keys(tables).find(id => 
         tables[id].name.toLowerCase() === tableName.toLowerCase()
       );
+      if (tableId) {
+        foundTable = tables[tableId];
+      }
     }
     
-    if (!tableId) {
+    if (!tableId || !foundTable) {
       alert('Bu isimde masa bulunamadı.');
       return;
     }
     
-    // Join the table
-    const table = useFirestore ? 
-      await fsJoinTableById(tableId, playerNumber, password) : 
-      joinTableById(tableId, playerNumber, password);
+    // Verify table structure
+    if (!foundTable.players || typeof foundTable.players !== 'object') {
+      console.error('Hatalı masa yapısı:', foundTable);
+      alert('Masa yapısı hatalı. Yönetici ile iletişime geçin.');
+      return;
+    }
     
-    // Set current table and player
-    state.currentTable = tableId;
-    state.currentPlayer = playerNumber;
-    state.isTableHost = false;
+    // Join the table
+    try {
+      const table = useFirestore ? 
+        await fsJoinTableById(tableId, playerNumber, password) : 
+        joinTableById(tableId, playerNumber, password);
+      
+      // Set current table and player
+      state.currentTable = tableId;
+      state.currentPlayer = playerNumber;
+      state.isTableHost = false;
     
     // Sync with table state
     syncWithTable();
