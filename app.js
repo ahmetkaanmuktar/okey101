@@ -3,10 +3,30 @@
 
 // Constants
 const STORAGE_KEY = 'okey-adisyon-state-v1';
+const TABLE_STORAGE_KEY = 'okey-tables-v1';
+const AUTO_NAV = 'join'; // 'join' | 'create' | 'single' | null
+const PLAYER_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 const MODES = {
   solo4: { name: '4 Oyuncu', participants: ['p0', 'p1', 'p2', 'p3'] },
   teams2v2: { name: 'Eşli 2v2', participants: ['A', 'B'] }
 };
+
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAXpt0FUcEIVbr3ni-Ryl-enC9GavWHgPU",
+  authDomain: "okey101-game.firebaseapp.com",
+  projectId: "okey101-game",
+  storageBucket: "okey101-game.firebasestorage.app",
+  messagingSenderId: "486845912865",
+  appId: "1:486845912865:web:328b20a904594050155060",
+  measurementId: "G-0042EW9DS7"
+};
+
+// Firebase globals (will be initialized if available)
+let app = null;
+let db = null;
+let useFirestore = false;
 
 // Global State
 let state = {
@@ -24,11 +44,13 @@ let state = {
   // Table management
   currentTable: null,
   currentPlayer: null,
-  isTableHost: false
+  isTableHost: false,
+  // Player statistics
+  totalOnlinePlayers: 0,
+  currentTablePlayerCount: 0
 };
 
 // Table Management System
-const TABLE_STORAGE_KEY = 'okey-tables-v1';
 let tables = {};
 
 // DOM Elements
@@ -92,6 +114,158 @@ function sanitizeInput(value) {
   return numValue;
 }
 
+// Firebase Firestore Functions
+function initializeFirebase() {
+  try {
+    // Check if Firebase compat is available
+    if (typeof window.firebase !== 'undefined' && window.firebase.initializeApp) {
+      app = window.firebase.initializeApp(firebaseConfig);
+      db = window.firebase.firestore();
+      useFirestore = true;
+      console.log('Firebase Firestore initialized successfully');
+    } else {
+      console.log('Firebase not available, using localStorage');
+      useFirestore = false;
+    }
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+    useFirestore = false;
+  }
+}
+
+async function fsCreateTable(tableName, password) {
+  if (!useFirestore) return createTable(tableName, password);
+  
+  try {
+    const tableId = generateTableId();
+    const tableData = {
+      id: tableId,
+      name: tableName,
+      password: password,
+      createdAt: new Date().toISOString(),
+      host: 0,
+      players: {
+        0: { name: 'Oyuncu 1', online: true, isHost: true, lastSeen: new Date().toISOString() },
+        1: { name: 'Oyuncu 2', online: false, isHost: false, lastSeen: null },
+        2: { name: 'Oyuncu 3', online: false, isHost: false, lastSeen: null },
+        3: { name: 'Oyuncu 4', online: false, isHost: false, lastSeen: null }
+      },
+      gameState: {
+        settings: {
+          mode: 'solo4',
+          target: 11,
+          namesSolo4: ['Oyuncu 1', 'Oyuncu 2', 'Oyuncu 3', 'Oyuncu 4']
+        },
+        rows: [],
+        penalties: [],
+        startedAt: null,
+        gameStarted: false
+      },
+      lastActivity: new Date().toISOString(),
+      gameCanStart: false
+    };
+    
+    await db.collection('tables').doc(tableId).set(tableData);
+    tables[tableId] = tableData;
+    updatePlayerCounts();
+    
+    return tableId;
+  } catch (error) {
+    console.error('Firestore create table error:', error);
+    return createTable(tableName, password);
+  }
+}
+
+async function fsJoinTableById(tableId, playerNumber, password) {
+  if (!useFirestore) return joinTableById(tableId, playerNumber, password);
+  
+  try {
+    const tableDoc = await db.collection('tables').doc(tableId).get();
+    
+    if (!tableDoc.exists) {
+      throw new Error('Masa bulunamadı');
+    }
+    
+    const table = tableDoc.data();
+    
+    if (table.password !== password) {
+      throw new Error('Yanlış şifre');
+    }
+    
+    if (table.players[playerNumber].online) {
+      throw new Error('Bu oyuncu pozisyonu zaten dolu');
+    }
+    
+    // Update player status
+    const updateData = {};
+    updateData[`players.${playerNumber}.online`] = true;
+    updateData[`players.${playerNumber}.lastSeen`] = new Date().toISOString();
+    updateData['lastActivity'] = new Date().toISOString();
+    
+    // Check if all 4 players are online
+    const updatedPlayers = { ...table.players };
+    updatedPlayers[playerNumber].online = true;
+    const onlineCount = Object.values(updatedPlayers).filter(p => p.online).length;
+    updateData['gameCanStart'] = onlineCount === 4;
+    
+    await db.collection('tables').doc(tableId).update(updateData);
+    
+    // Update local cache
+    table.players[playerNumber].online = true;
+    table.players[playerNumber].lastSeen = new Date().toISOString();
+    table.gameCanStart = onlineCount === 4;
+    tables[tableId] = table;
+    updatePlayerCounts();
+    
+    return table;
+  } catch (error) {
+    console.error('Firestore join table error:', error);
+    throw error;
+  }
+}
+
+async function fsUpdateGameState(tableId, gameState) {
+  if (!useFirestore) return updateTableGameState(tableId, gameState);
+  
+  try {
+    const updateData = {
+      gameState: gameState,
+      lastActivity: new Date().toISOString()
+    };
+    
+    await db.collection('tables').doc(tableId).update(updateData);
+    
+    // Update local cache
+    if (tables[tableId]) {
+      tables[tableId].gameState = gameState;
+      tables[tableId].lastActivity = new Date().toISOString();
+    }
+    
+    broadcastTableUpdate(tableId);
+  } catch (error) {
+    console.error('Firestore update game state error:', error);
+    updateTableGameState(tableId, gameState);
+  }
+}
+
+function fsStartListener(tableId, callback) {
+  if (!useFirestore) return;
+  
+  try {
+    return db.collection('tables').doc(tableId).onSnapshot((doc) => {
+      if (doc.exists) {
+        const table = doc.data();
+        tables[tableId] = table;
+        updatePlayerCounts();
+        callback(table);
+      }
+    });
+  } catch (error) {
+    console.error('Firestore listener error:', error);
+    return null;
+  }
+}
+
 // Table Management Functions
 function loadTables() {
   try {
@@ -148,6 +322,34 @@ function createTable(tableName, password) {
   
   saveTables();
   return tableId;
+}
+
+function joinTableById(tableId, playerNumber, password) {
+  const table = tables[tableId];
+  
+  if (!table) {
+    throw new Error('Masa bulunamadı');
+  }
+  
+  if (table.password !== password) {
+    throw new Error('Yanlış şifre');
+  }
+  
+  if (table.players[playerNumber].online) {
+    throw new Error('Bu oyuncu pozisyonu zaten dolu');
+  }
+  
+  table.players[playerNumber].online = true;
+  table.players[playerNumber].lastSeen = new Date().toISOString();
+  table.lastActivity = new Date().toISOString();
+  
+  // Check if all 4 players are online
+  const onlineCount = Object.values(table.players).filter(p => p.online).length;
+  table.gameCanStart = onlineCount === 4;
+  
+  saveTables();
+  updatePlayerCounts();
+  return table;
 }
 
 function joinTable(tableId, playerNumber, password) {
@@ -242,8 +444,107 @@ function syncWithTable() {
     }
     
     updatePlayerStatus();
+    updatePlayerCounts();
   }
 }
+
+function updatePlayerCounts() {
+  // Count total online players across all tables
+  let totalOnline = 0;
+  let currentTableCount = 0;
+  
+  Object.values(tables).forEach(table => {
+    const onlineInTable = Object.values(table.players).filter(p => p.online).length;
+    totalOnline += onlineInTable;
+    
+    if (table.id === state.currentTable) {
+      currentTableCount = onlineInTable;
+    }
+  });
+  
+  // Add standalone players (not in any table) - assume 1 for now
+  if (!state.currentTable) {
+    totalOnline += 1;
+  }
+  
+  state.totalOnlinePlayers = totalOnline;
+  state.currentTablePlayerCount = currentTableCount;
+  
+  // Update UI
+  updatePlayerCountDisplay();
+}
+
+function updatePlayerCountDisplay() {
+  // Update total player count in header
+  const playerCountElement = document.getElementById('total-player-count');
+  if (playerCountElement) {
+    playerCountElement.textContent = `${state.totalOnlinePlayers} oyuncu çevrimiçi`;
+  }
+  
+  // Update current table player count
+  const tablePlayerCountElement = document.getElementById('table-player-count');
+  if (tablePlayerCountElement && state.currentTable) {
+    const table = tables[state.currentTable];
+    if (table) {
+      const onlineCount = Object.values(table.players).filter(p => p.online).length;
+      tablePlayerCountElement.textContent = `Oyunda: ${onlineCount}/4 kişi`;
+    }
+  }
+}
+
+function checkOfflinePlayers() {
+  const now = new Date();
+  
+  Object.keys(tables).forEach(tableId => {
+    const table = tables[tableId];
+    let hasChanges = false;
+    
+    Object.keys(table.players).forEach(playerIndex => {
+      const player = table.players[playerIndex];
+      
+      if (player.online && player.lastSeen) {
+        const lastSeen = new Date(player.lastSeen);
+        const timeDiff = now - lastSeen;
+        
+        if (timeDiff > PLAYER_TIMEOUT) {
+          player.online = false;
+          hasChanges = true;
+          console.log(`Player ${playerIndex} in table ${tableId} timed out`);
+        }
+      }
+    });
+    
+    if (hasChanges) {
+      // Update gameCanStart status
+      const onlineCount = Object.values(table.players).filter(p => p.online).length;
+      table.gameCanStart = onlineCount === 4;
+      
+      // If using Firestore, update there too
+      if (useFirestore) {
+        const updateData = {};
+        Object.keys(table.players).forEach(playerIndex => {
+          const player = table.players[playerIndex];
+          updateData[`players.${playerIndex}.online`] = player.online;
+        });
+        updateData['gameCanStart'] = table.gameCanStart;
+        updateData['lastActivity'] = new Date().toISOString();
+        
+        db.collection('tables').doc(tableId).update(updateData).catch(console.error);
+      }
+      
+      saveTables();
+      updatePlayerCounts();
+      
+      // Update UI if this is current table
+      if (tableId === state.currentTable) {
+        updatePlayerStatus();
+      }
+    }
+  });
+}
+
+// Start offline player checker
+setInterval(checkOfflinePlayers, 30000); // Check every 30 seconds
 
 // State Management
 function saveState() {
@@ -710,13 +1011,19 @@ function handleScoreInput(event) {
   
   // Sync with table if in table mode
   if (state.currentTable) {
-    updateTableGameState(state.currentTable, {
+    const gameState = {
       settings: state.settings,
       rows: state.rows,
       penalties: state.penalties,
       startedAt: state.startedAt,
       gameStarted: state.gameStarted
-    });
+    };
+    
+    if (useFirestore) {
+      fsUpdateGameState(state.currentTable, gameState);
+    } else {
+      updateTableGameState(state.currentTable, gameState);
+    }
   }
   
   // Check if row is complete
@@ -1189,7 +1496,7 @@ function handleBackToMainMenu() {
   }
 }
 
-function handleCreateTable() {
+async function handleCreateTable() {
   const tableName = elements.tableName.value.trim();
   const password = elements.tablePassword.value.trim();
   
@@ -1206,7 +1513,10 @@ function handleCreateTable() {
   }
   
   try {
-    const tableId = createTable(tableName, password);
+    // Use Firestore if available, otherwise localStorage
+    const tableId = useFirestore ? 
+      await fsCreateTable(tableName, password) : 
+      createTable(tableName, password);
     
     // Set current table and player
     state.currentTable = tableId;
@@ -1222,57 +1532,40 @@ function handleCreateTable() {
       table.players[3].name
     ];
     
-    // Hide table creation, show game
+    // Hide table creation, show game (but don't start yet)
     elements.tableCreationCard.style.display = 'none';
     elements.gameSection.style.display = 'block';
     
-    // Show player status
+    // Show table info and player status
+    showTableInfo(tableId);
     updatePlayerStatus();
+    updatePlayerCounts();
     
-    // Start the game automatically for table host
-    state.gameStarted = true;
-    state.startedAt = new Date().toISOString();
-    state.rows = [{
-      hand: 1,
-      values: new Array(4).fill(null)
-    }];
+    // DON'T start the game automatically - wait for 4 players
+    state.gameStarted = false;
     
-    renderTable();
-    updateTotals();
     saveState();
     
-    // Update table state
-    updateTableGameState(tableId, {
-      settings: state.settings,
-      rows: state.rows,
-      penalties: state.penalties,
-      startedAt: state.startedAt,
-      gameStarted: state.gameStarted
-    });
+    alert(`Masa "${tableName}" oluşturuldu!\nMasa ID: ${tableId}\nDiğer oyuncular bu ID ile katılabilir.`);
     
-    alert(`Masa "${tableName}" oluşturuldu! Masa ID: ${tableId}`);
-    
-    // Focus first input
-    setTimeout(() => {
-      const firstInput = elements.tableBody.querySelector('input[data-row="0"][data-col="0"]');
-      if (firstInput) {
-        firstInput.focus();
-      }
-    }, 100);
+    // Start Firestore listener if available
+    if (useFirestore) {
+      fsStartListener(tableId, handleTableUpdate);
+    }
     
   } catch (error) {
     alert('Masa oluşturulurken hata: ' + error.message);
   }
 }
 
-function handleJoinTable() {
-  const tableName = elements.joinTableName.value.trim();
+async function handleJoinTable() {
+  const tableId = elements.joinTableId.value.trim();
   const password = elements.joinTablePassword.value.trim();
   const playerNumber = parseInt(elements.playerNumber.value);
   
-  if (!tableName) {
-    alert('Lütfen masa adı girin.');
-    elements.joinTableName.focus();
+  if (!tableId) {
+    alert('Lütfen masa ID\'sini girin.');
+    elements.joinTableId.focus();
     return;
   }
   
@@ -1283,23 +1576,16 @@ function handleJoinTable() {
   }
   
   if (isNaN(playerNumber)) {
-    alert('Lütfen oyuncu numarası seçin.');
+    alert('Lütfen oyuncu pozisyonu seçin.');
     elements.playerNumber.focus();
     return;
   }
   
   try {
-    // Find table by name
-    const tableId = Object.keys(tables).find(id => 
-      tables[id].name.toLowerCase() === tableName.toLowerCase()
-    );
-    
-    if (!tableId) {
-      alert('Masa bulunamadı.');
-      return;
-    }
-    
-    const table = joinTable(tableId, playerNumber, password);
+    // Use Firestore if available, otherwise localStorage
+    const table = useFirestore ? 
+      await fsJoinTableById(tableId, playerNumber, password) : 
+      joinTableById(tableId, playerNumber, password);
     
     // Set current table and player
     state.currentTable = tableId;
@@ -1313,15 +1599,141 @@ function handleJoinTable() {
     elements.joinTableCard.style.display = 'none';
     elements.gameSection.style.display = 'block';
     
-    // Show player status
+    // Show table info and player status
+    showTableInfo(tableId);
     updatePlayerStatus();
+    updatePlayerCounts();
     
     saveState();
     
-    alert(`"${tableName}" masasına katıldınız!`);
+    alert(`Masaya başarıyla katıldınız!\nMasa ID: ${tableId}`);
+    
+    // Start Firestore listener if available
+    if (useFirestore) {
+      fsStartListener(tableId, handleTableUpdate);
+    }
     
   } catch (error) {
     alert('Masaya katılırken hata: ' + error.message);
+  }
+}
+
+function showTableInfo(tableId) {
+  if (elements.tableInfo && elements.currentTableId) {
+    elements.tableInfo.style.display = 'block';
+    elements.currentTableId.textContent = tableId;
+    
+    // Show start game button only for host
+    if (state.isTableHost && elements.startTableGameBtn) {
+      elements.startTableGameBtn.style.display = 'block';
+    }
+  }
+}
+
+function handleCopyTableId() {
+  const tableId = elements.currentTableId.textContent;
+  if (tableId && tableId !== '-') {
+    navigator.clipboard.writeText(tableId).then(() => {
+      // Visual feedback
+      const originalText = elements.copyTableIdBtn.innerHTML;
+      elements.copyTableIdBtn.innerHTML = '<span class="icon">✅</span> Kopyalandı';
+      setTimeout(() => {
+        elements.copyTableIdBtn.innerHTML = originalText;
+      }, 2000);
+    }).catch(() => {
+      alert('Masa ID kopyalanamadı. Manuel olarak kopyalayın: ' + tableId);
+    });
+  }
+}
+
+function handleStartTableGame() {
+  if (!state.currentTable || !state.isTableHost) {
+    alert('Sadece masa sahibi oyunu başlatabilir.');
+    return;
+  }
+  
+  const table = tables[state.currentTable];
+  if (!table) {
+    alert('Masa bilgisi bulunamadı.');
+    return;
+  }
+  
+  const onlineCount = Object.values(table.players).filter(p => p.online).length;
+  if (onlineCount < 4) {
+    alert('Oyun başlaması için tüm oyuncular masaya bağlanmalı!\nŞu anda ' + onlineCount + '/4 oyuncu çevrimiçi.');
+    return;
+  }
+  
+  // Start the game
+  state.gameStarted = true;
+  state.startedAt = new Date().toISOString();
+  state.rows = [{
+    hand: 1,
+    values: new Array(4).fill(null)
+  }];
+  
+  renderTable();
+  updateTotals();
+  saveState();
+  
+  // Update table state
+  const gameState = {
+    settings: state.settings,
+    rows: state.rows,
+    penalties: state.penalties,
+    startedAt: state.startedAt,
+    gameStarted: state.gameStarted
+  };
+  
+  if (useFirestore) {
+    fsUpdateGameState(state.currentTable, gameState);
+  } else {
+    updateTableGameState(state.currentTable, gameState);
+  }
+  
+  // Hide start button
+  elements.startTableGameBtn.style.display = 'none';
+  
+  alert('Oyun başlatıldı! İyi oyunlar!');
+  
+  // Focus first input
+  setTimeout(() => {
+    const firstInput = elements.tableBody.querySelector('input[data-row="0"][data-col="0"]');
+    if (firstInput) {
+      firstInput.focus();
+    }
+  }, 100);
+}
+
+function handleTableUpdate(table) {
+  // This is called by Firestore listener
+  if (table && state.currentTable === table.id) {
+    // Update local state
+    if (table.gameState) {
+      const tableState = table.gameState;
+      state.settings = { ...tableState.settings };
+      state.rows = [...tableState.rows];
+      state.penalties = [...tableState.penalties];
+      state.startedAt = tableState.startedAt;
+      state.gameStarted = tableState.gameStarted;
+      
+      // Update UI
+      if (state.gameStarted) {
+        renderTable();
+        updateTotals();
+        updateMilestone();
+        checkWinner();
+      }
+    }
+    
+    updatePlayerStatus();
+    updatePlayerCounts();
+    
+    // Update start button visibility
+    if (state.isTableHost && elements.startTableGameBtn) {
+      const canStart = table.gameCanStart && !state.gameStarted;
+      elements.startTableGameBtn.style.display = canStart ? 'block' : 'none';
+    }
   }
 }
 
@@ -1358,11 +1770,17 @@ function initializeElements() {
     
     // Join Table
     joinTableCard: document.getElementById('join-table-card'),
-    joinTableName: document.getElementById('join-table-name'),
+    joinTableId: document.getElementById('join-table-id'),
     joinTablePassword: document.getElementById('join-table-password'),
     playerNumber: document.getElementById('player-number'),
     joinTableConfirmBtn: document.getElementById('join-table-confirm-btn'),
     backToMainFromJoinBtn: document.getElementById('back-to-main-from-join-btn'),
+    
+    // Table Info
+    tableInfo: document.getElementById('table-info'),
+    currentTableId: document.getElementById('current-table-id'),
+    copyTableIdBtn: document.getElementById('copy-table-id-btn'),
+    startTableGameBtn: document.getElementById('start-table-game-btn'),
     
     // Player Status
     playerStatus: document.getElementById('player-status'),
@@ -1433,6 +1851,10 @@ function initializeEventListeners() {
   elements.joinTableConfirmBtn.addEventListener('click', handleJoinTable);
   elements.backToMainFromJoinBtn.addEventListener('click', handleBackToMainMenu);
   
+  // Table Info
+  elements.copyTableIdBtn.addEventListener('click', handleCopyTableId);
+  elements.startTableGameBtn.addEventListener('click', handleStartTableGame);
+  
   // Mode change
   document.querySelectorAll('input[name="mode"]').forEach(radio => {
     radio.addEventListener('change', updateModeVisibility);
@@ -1498,6 +1920,9 @@ function initializeEventListeners() {
 }
 
 function initialize() {
+  // Initialize Firebase first
+  initializeFirebase();
+  
   initializeElements();
   initializeEventListeners();
   
@@ -1508,6 +1933,7 @@ function initialize() {
   // Update UI
   updateTheme();
   populateSettingsForm();
+  updatePlayerCounts();
   
   // Show appropriate section
   if (state.gameStarted) {
@@ -1524,18 +1950,33 @@ function initialize() {
     
     // Update player status if in table mode
     if (state.currentTable) {
+      showTableInfo(state.currentTable);
       updatePlayerStatus();
+      
+      // Start Firestore listener if available
+      if (useFirestore) {
+        fsStartListener(state.currentTable, handleTableUpdate);
+      }
     }
   } else {
-    // Show main menu by default
-    elements.mainMenuCard.style.display = 'block';
-    elements.settingsCard.style.display = 'none';
-    elements.gameSection.style.display = 'none';
-    elements.tableCreationCard.style.display = 'none';
-    elements.joinTableCard.style.display = 'none';
+    // Handle AUTO_NAV
+    if (AUTO_NAV === 'join') {
+      handleJoinTableMode();
+    } else if (AUTO_NAV === 'create') {
+      handleCreateTableMode();
+    } else if (AUTO_NAV === 'single') {
+      handleSinglePlayerMode();
+    } else {
+      // Show main menu by default
+      elements.mainMenuCard.style.display = 'block';
+      elements.settingsCard.style.display = 'none';
+      elements.gameSection.style.display = 'none';
+      elements.tableCreationCard.style.display = 'none';
+      elements.joinTableCard.style.display = 'none';
+    }
   }
   
-  console.log('Okey Adisyon uygulaması başlatıldı!');
+  console.log('Okey Adisyon v2.0 başlatıldı! Firebase:', useFirestore ? 'Aktif' : 'LocalStorage');
 }
 
 // Start the app when DOM is loaded
