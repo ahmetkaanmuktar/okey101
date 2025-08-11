@@ -32,18 +32,49 @@
     </header>
 
     <main class="main-content">
+        <!-- Main Menu Card -->
+        <div id="main-menu-card" class="card settings-card">
+            <h2>🎯 Okey Adisyon</h2>
+            <p class="menu-description">Oyun modunu seçiniz</p>
+            
+            <div class="form-actions menu-actions">
+                <button id="create-table-mode-btn" class="btn btn-primary btn-large">
+                    <span class="icon">🏗️</span>
+                    <div class="btn-content">
+                        <div class="btn-title">Masa Oluştur</div>
+                        <div class="btn-subtitle">Yeni çok oyunculu masa</div>
+                    </div>
+                </button>
+                <button id="join-table-mode-btn" class="btn btn-secondary btn-large">
+                    <span class="icon">🚪</span>
+                    <div class="btn-content">
+                        <div class="btn-title">Masaya Katıl</div>
+                        <div class="btn-subtitle">Mevcut masaya giriş</div>
+                    </div>
+                </button>
+                <button id="single-player-mode-btn" class="btn btn-ghost btn-large">
+                    <span class="icon">🎮</span>
+                    <div class="btn-content">
+                        <div class="btn-title">Tek Oyuncu</div>
+                        <div class="btn-subtitle">Geleneksel mod</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+
         <!-- Table Creation Card -->
         <div id="table-creation-card" class="card settings-card" style="display: none;">
-            <h2>Masa Oluştur</h2>
+            <h2>🏗️ Masa Oluştur</h2>
+            <p class="form-description">Yeni bir çok oyunculu masa oluşturun</p>
             
             <div class="form-group">
                 <label for="table-name" class="form-label">Masa Adı</label>
-                <input type="text" id="table-name" class="form-input" placeholder="Masa adı girin..." maxlength="30">
+                <input type="text" id="table-name" class="form-input" placeholder="Örn: Ahmet'in Masası" maxlength="30">
             </div>
 
             <div class="form-group">
                 <label for="table-password" class="form-label">Masa Şifresi</label>
-                <input type="password" id="table-password" class="form-input" placeholder="Şifre girin..." maxlength="20">
+                <input type="password" id="table-password" class="form-input" placeholder="Güvenli şifre girin" maxlength="20">
             </div>
 
             <div class="form-actions">
@@ -51,35 +82,32 @@
                     <span class="icon">🏗️</span>
                     Masa Oluştur
                 </button>
-                <button id="join-table-btn" class="btn btn-secondary">
-                    <span class="icon">🚪</span>
-                    Masaya Katıl
-                </button>
-                <button id="back-to-settings-btn" class="btn btn-ghost">
+                <button id="back-to-main-btn" class="btn btn-ghost">
                     <span class="icon">↩️</span>
-                    Geri
+                    Ana Menü
                 </button>
             </div>
         </div>
 
         <!-- Join Table Card -->
         <div id="join-table-card" class="card settings-card" style="display: none;">
-            <h2>Masaya Katıl</h2>
+            <h2>🚪 Masaya Katıl</h2>
+            <p class="form-description">Mevcut bir masaya katılın</p>
             
             <div class="form-group">
                 <label for="join-table-name" class="form-label">Masa Adı</label>
-                <input type="text" id="join-table-name" class="form-input" placeholder="Masa adı girin..." maxlength="30">
+                <input type="text" id="join-table-name" class="form-input" placeholder="Masa adını girin" maxlength="30">
             </div>
 
             <div class="form-group">
                 <label for="join-table-password" class="form-label">Masa Şifresi</label>
-                <input type="password" id="join-table-password" class="form-input" placeholder="Şifre girin..." maxlength="20">
+                <input type="password" id="join-table-password" class="form-input" placeholder="Masa şifresini girin" maxlength="20">
             </div>
 
             <div class="form-group">
-                <label for="player-number" class="form-label">Oyuncu Numarası</label>
+                <label for="player-number" class="form-label">Oyuncu Pozisyonu</label>
                 <select id="player-number" class="form-select">
-                    <option value="">Seçiniz...</option>
+                    <option value="">Pozisyon seçiniz...</option>
                     <option value="0">1. Oyuncu</option>
                     <option value="1">2. Oyuncu</option>
                     <option value="2">3. Oyuncu</option>
@@ -90,11 +118,11 @@
             <div class="form-actions">
                 <button id="join-table-confirm-btn" class="btn btn-primary">
                     <span class="icon">✅</span>
-                    Katıl
+                    Masaya Katıl
                 </button>
-                <button id="back-to-table-creation-btn" class="btn btn-ghost">
+                <button id="back-to-main-from-join-btn" class="btn btn-ghost">
                     <span class="icon">↩️</span>
-                    Geri
+                    Ana Menü
                 </button>
             </div>
         </div>
@@ -155,13 +183,13 @@
                     <span class="icon">🎮</span>
                     Başlat
                 </button>
-                <button id="create-table-mode-btn" class="btn btn-secondary">
-                    <span class="icon">🏗️</span>
-                    Masa Oluştur
-                </button>
                 <button id="demo-btn" class="btn btn-ghost">
                     <span class="icon">📋</span>
                     Örnek Verilerle Doldur
+                </button>
+                <button id="back-to-main-from-settings-btn" class="btn btn-ghost">
+                    <span class="icon">↩️</span>
+                    Ana Menü
                 </button>
             </div>
         </div>

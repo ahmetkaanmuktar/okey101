@@ -878,8 +878,9 @@ function handleNewGame() {
   
   resetState();
   
-  // Show settings, hide all other cards
-  elements.settingsCard.style.display = 'block';
+  // Show main menu, hide all other cards
+  elements.mainMenuCard.style.display = 'block';
+  elements.settingsCard.style.display = 'none';
   elements.gameSection.style.display = 'none';
   elements.tableCreationCard.style.display = 'none';
   elements.joinTableCard.style.display = 'none';
@@ -1154,27 +1155,38 @@ function handlePenaltyQuickBtn(event) {
   elements.penaltyValue.value = value;
 }
 
-// Table Event Handlers
+// Navigation Event Handlers
 function handleCreateTableMode() {
-  elements.settingsCard.style.display = 'none';
+  elements.mainMenuCard.style.display = 'none';
   elements.tableCreationCard.style.display = 'block';
   elements.tableName.focus();
 }
 
 function handleJoinTableMode() {
-  elements.tableCreationCard.style.display = 'none';
+  elements.mainMenuCard.style.display = 'none';
   elements.joinTableCard.style.display = 'block';
   elements.joinTableName.focus();
 }
 
-function handleBackToSettings() {
-  elements.tableCreationCard.style.display = 'none';
+function handleSinglePlayerMode() {
+  elements.mainMenuCard.style.display = 'none';
   elements.settingsCard.style.display = 'block';
 }
 
-function handleBackToTableCreation() {
+function handleBackToMainMenu() {
+  // Hide all cards
+  elements.tableCreationCard.style.display = 'none';
   elements.joinTableCard.style.display = 'none';
-  elements.tableCreationCard.style.display = 'block';
+  elements.settingsCard.style.display = 'none';
+  elements.gameSection.style.display = 'none';
+  
+  // Show main menu
+  elements.mainMenuCard.style.display = 'block';
+  
+  // Hide player status
+  if (elements.playerStatus) {
+    elements.playerStatus.style.display = 'none';
+  }
 }
 
 function handleCreateTable() {
@@ -1324,20 +1336,25 @@ function initializeElements() {
     // Main content
     mainContent: document.querySelector('.main-content'),
     
+    // Main Menu
+    mainMenuCard: document.getElementById('main-menu-card'),
+    createTableModeBtn: document.getElementById('create-table-mode-btn'),
+    joinTableModeBtn: document.getElementById('join-table-mode-btn'),
+    singlePlayerModeBtn: document.getElementById('single-player-mode-btn'),
+    
     // Settings
     settingsCard: document.getElementById('settings-card'),
     targetSelect: document.getElementById('target-select'),
     startGameBtn: document.getElementById('start-game-btn'),
-    createTableModeBtn: document.getElementById('create-table-mode-btn'),
     demoBtn: document.getElementById('demo-btn'),
+    backToMainFromSettingsBtn: document.getElementById('back-to-main-from-settings-btn'),
     
     // Table Creation
     tableCreationCard: document.getElementById('table-creation-card'),
     tableName: document.getElementById('table-name'),
     tablePassword: document.getElementById('table-password'),
     createTableBtn: document.getElementById('create-table-btn'),
-    joinTableBtn: document.getElementById('join-table-btn'),
-    backToSettingsBtn: document.getElementById('back-to-settings-btn'),
+    backToMainBtn: document.getElementById('back-to-main-btn'),
     
     // Join Table
     joinTableCard: document.getElementById('join-table-card'),
@@ -1345,7 +1362,7 @@ function initializeElements() {
     joinTablePassword: document.getElementById('join-table-password'),
     playerNumber: document.getElementById('player-number'),
     joinTableConfirmBtn: document.getElementById('join-table-confirm-btn'),
-    backToTableCreationBtn: document.getElementById('back-to-table-creation-btn'),
+    backToMainFromJoinBtn: document.getElementById('back-to-main-from-join-btn'),
     
     // Player Status
     playerStatus: document.getElementById('player-status'),
@@ -1398,19 +1415,23 @@ function initializeEventListeners() {
   elements.printBtn.addEventListener('click', handlePrint);
   elements.themeToggle.addEventListener('click', handleThemeToggle);
   
+  // Main Menu
+  elements.createTableModeBtn.addEventListener('click', handleCreateTableMode);
+  elements.joinTableModeBtn.addEventListener('click', handleJoinTableMode);
+  elements.singlePlayerModeBtn.addEventListener('click', handleSinglePlayerMode);
+  
   // Settings
   elements.startGameBtn.addEventListener('click', handleStartGame);
-  elements.createTableModeBtn.addEventListener('click', handleCreateTableMode);
   elements.demoBtn.addEventListener('click', handleDemo);
+  elements.backToMainFromSettingsBtn.addEventListener('click', handleBackToMainMenu);
   
   // Table Creation
   elements.createTableBtn.addEventListener('click', handleCreateTable);
-  elements.joinTableBtn.addEventListener('click', handleJoinTableMode);
-  elements.backToSettingsBtn.addEventListener('click', handleBackToSettings);
+  elements.backToMainBtn.addEventListener('click', handleBackToMainMenu);
   
   // Join Table
   elements.joinTableConfirmBtn.addEventListener('click', handleJoinTable);
-  elements.backToTableCreationBtn.addEventListener('click', handleBackToTableCreation);
+  elements.backToMainFromJoinBtn.addEventListener('click', handleBackToMainMenu);
   
   // Mode change
   document.querySelectorAll('input[name="mode"]').forEach(radio => {
@@ -1490,8 +1511,12 @@ function initialize() {
   
   // Show appropriate section
   if (state.gameStarted) {
+    elements.mainMenuCard.style.display = 'none';
     elements.settingsCard.style.display = 'none';
+    elements.tableCreationCard.style.display = 'none';
+    elements.joinTableCard.style.display = 'none';
     elements.gameSection.style.display = 'block';
+    
     renderTable();
     updateTotals();
     updateMilestone();
@@ -1502,7 +1527,9 @@ function initialize() {
       updatePlayerStatus();
     }
   } else {
-    elements.settingsCard.style.display = 'block';
+    // Show main menu by default
+    elements.mainMenuCard.style.display = 'block';
+    elements.settingsCard.style.display = 'none';
     elements.gameSection.style.display = 'none';
     elements.tableCreationCard.style.display = 'none';
     elements.joinTableCard.style.display = 'none';
