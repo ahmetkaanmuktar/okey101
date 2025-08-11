@@ -565,6 +565,16 @@ body {
   background: rgba(79, 70, 229, 0.1);
 }
 
+.player-block.scorekeeper {
+  border-color: var(--success-color);
+  background: rgba(5, 150, 105, 0.1);
+}
+
+.player-block.scorekeeper .player-number {
+  color: var(--success-color);
+  font-size: var(--font-size-2xl);
+}
+
 .player-number {
   font-size: var(--font-size-3xl);
   font-weight: 700;
@@ -577,6 +587,26 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: var(--spacing-sm);
+  transition: var(--transition);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+}
+
+.player-name-status[contenteditable="true"] {
+  cursor: pointer;
+  border: 1px dashed transparent;
+}
+
+.player-name-status[contenteditable="true"]:hover {
+  background: var(--bg-glass);
+  border-color: var(--border-color);
+}
+
+.player-name-status[contenteditable="true"]:focus {
+  outline: none;
+  background: var(--bg-glass);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .player-online-status {

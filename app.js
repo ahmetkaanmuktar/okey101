@@ -4,7 +4,7 @@
 // Constants
 const STORAGE_KEY = 'okey-adisyon-state-v1';
 const TABLE_STORAGE_KEY = 'okey-tables-v1';
-const AUTO_NAV = 'join'; // 'join' | 'create' | 'single' | null
+const AUTO_NAV = null; // 'join' | 'create' | 'single' | null - null shows main menu by default
 const PLAYER_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 const MODES = {
@@ -148,7 +148,8 @@ async function fsCreateTable(tableName, password) {
         0: { name: 'Oyuncu 1', online: true, isHost: true, lastSeen: new Date().toISOString() },
         1: { name: 'Oyuncu 2', online: false, isHost: false, lastSeen: null },
         2: { name: 'Oyuncu 3', online: false, isHost: false, lastSeen: null },
-        3: { name: 'Oyuncu 4', online: false, isHost: false, lastSeen: null }
+        3: { name: 'Oyuncu 4', online: false, isHost: false, lastSeen: null },
+        4: { name: 'El Yazıcı', online: false, isHost: false, isScorekeeper: true, lastSeen: null }
       },
       gameState: {
         settings: {
@@ -544,7 +545,7 @@ function checkOfflinePlayers() {
 }
 
 // Start offline player checker
-setInterval(checkOfflinePlayers, 30000); // Check every 30 seconds
+setInterval(checkOfflinePlayers, 5000); // Check every 5 seconds for better real-time updates
 
 // State Management
 function saveState() {
@@ -939,12 +940,28 @@ function updatePlayerStatus() {
   elements.playerStatus.style.display = 'block';
   
   // Update each player block
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i <= 4; i++) {
     const playerBlock = document.querySelector(`.player-block[data-player="${i}"]`);
     if (playerBlock) {
       const player = table.players[i];
       const nameElement = playerBlock.querySelector('.player-name-status');
       const statusElement = playerBlock.querySelector('.player-online-status');
+      
+      // Make name editable for host
+      if (state.isTableHost && i < 4) {
+        nameElement.contentEditable = 'true';
+        nameElement.dataset.playerId = i;
+        if (!nameElement.hasEventListener) {
+          nameElement.addEventListener('blur', handlePlayerNameEdit);
+          nameElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.target.blur();
+            }
+          });
+          nameElement.hasEventListener = true;
+        }
+      }
       
       nameElement.textContent = player.name;
       
@@ -965,8 +982,47 @@ function updatePlayerStatus() {
   }
 }
 
+async function handlePlayerNameEdit(event) {
+  if (!state.isTableHost) return;
+  
+  const nameElement = event.target;
+  const playerId = parseInt(nameElement.dataset.playerId);
+  const newName = nameElement.textContent.trim();
+  
+  if (!newName) {
+    // Restore original name if empty
+    const table = tables[state.currentTable];
+    nameElement.textContent = table.players[playerId].name;
+    return;
+  }
+  
+  try {
+    if (useFirestore) {
+      await db.collection('tables').doc(state.currentTable).update({
+        [`players.${playerId}.name`]: newName
+      });
+    } else {
+      tables[state.currentTable].players[playerId].name = newName;
+      saveTables();
+    }
+  } catch (error) {
+    console.error('Failed to update player name:', error);
+    // Restore original name on error
+    const table = tables[state.currentTable];
+    nameElement.textContent = table.players[playerId].name;
+  }
+}
+
 // Event Handlers
 function handleScoreInput(event) {
+  // Only allow scorekeeper to enter scores
+  if (!state.currentTable || state.currentPlayer !== 4) {
+    event.preventDefault();
+    event.target.value = event.target.defaultValue;
+    alert('Sadece El Yazıcı puan girebilir!');
+    return;
+  }
+
   const input = event.target;
   const rowIndex = parseInt(input.dataset.row);
   const colIndex = parseInt(input.dataset.col);
@@ -1586,9 +1642,10 @@ async function handleJoinTable() {
     let tableId = null;
     
     if (useFirestore) {
-      // Search in Firestore
+      // Search in Firestore with optimized query
       const querySnapshot = await db.collection('tables')
         .where('name', '==', tableName)
+        .select('id', 'password') // Only fetch needed fields
         .limit(1)
         .get();
       
