@@ -1642,10 +1642,10 @@ async function handleJoinTable() {
     let tableId = null;
     
     if (useFirestore) {
-      // Search in Firestore
-      const querySnapshot = await db.collection('tables')
+      // Search in Firestore by table name
+      const tablesRef = db.collection('tables');
+      const querySnapshot = await tablesRef
         .where('name', '==', tableName)
-        .limit(1)
         .get();
       
       if (!querySnapshot.empty) {
