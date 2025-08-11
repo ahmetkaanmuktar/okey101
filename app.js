@@ -28,6 +28,9 @@ let app = null;
 let db = null;
 let useFirestore = false;
 
+// Firebase Firestore instance
+let firestore = null;
+
 // Global State
 let state = {
   settings: {
@@ -119,8 +122,13 @@ function initializeFirebase() {
   try {
     // Check if Firebase compat is available
     if (typeof window.firebase !== 'undefined' && window.firebase.initializeApp) {
+      // Initialize Firebase
       app = window.firebase.initializeApp(firebaseConfig);
-      db = window.firebase.firestore();
+      
+      // Get Firestore instance
+      firestore = window.firebase.firestore;
+      db = firestore();
+      
       useFirestore = true;
       console.log('Firebase Firestore initialized successfully');
     } else {
@@ -1644,9 +1652,8 @@ async function handleJoinTable() {
     if (useFirestore) {
       // Search in Firestore by table name
       const tablesRef = db.collection('tables');
-      const querySnapshot = await tablesRef
-        .where('name', '==', tableName)
-        .get();
+      const query = tablesRef.where('name', '==', tableName);
+      const querySnapshot = await query.get();
       
       if (!querySnapshot.empty) {
         tableId = querySnapshot.docs[0].id;

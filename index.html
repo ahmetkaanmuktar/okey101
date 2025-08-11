@@ -358,7 +358,11 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script>
         // Make Firebase available globally for our app
-        window.firebase = firebase;
+        if (typeof firebase !== 'undefined') {
+            window.firebase = firebase;
+        } else {
+            console.error('Firebase CDN yüklenemedi!');
+        }
     </script>
     
     <script type="module" src="app.js"></script>
