@@ -415,6 +415,87 @@ body {
   animation: fadeInUp 0.5s ease-out;
 }
 
+/* Player Status Blocks */
+.player-status-container {
+  margin-bottom: var(--spacing-lg);
+}
+
+.player-status-card {
+  padding: var(--spacing-lg);
+}
+
+.player-status-card h3 {
+  margin-bottom: var(--spacing-md);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.player-blocks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.player-block {
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  text-align: center;
+  transition: var(--transition);
+  position: relative;
+}
+
+.player-block:hover {
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.player-block.current-player {
+  border-color: var(--primary-color);
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.player-number {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-xs);
+}
+
+.player-name-status {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.player-online-status {
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.player-online-status.online {
+  background: var(--success-color);
+  color: white;
+}
+
+.player-online-status.offline {
+  background: var(--secondary-color);
+  color: white;
+}
+
+.player-online-status.current {
+  background: var(--primary-color);
+  color: white;
+}
+
 .table-header {
   display: flex;
   justify-content: space-between;
@@ -1016,6 +1097,22 @@ body {
   .penalty-quick-actions {
     flex-direction: column;
   }
+  
+  .player-blocks {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .player-block {
+    padding: var(--spacing-md);
+  }
+  
+  .player-number {
+    font-size: var(--font-size-2xl);
+  }
+  
+  .player-name-status {
+    font-size: var(--font-size-base);
+  }
 }
 
 @media (max-width: 480px) {
@@ -1048,5 +1145,9 @@ body {
   
   .winner-title {
     font-size: var(--font-size-2xl);
+  }
+  
+  .player-blocks {
+    grid-template-columns: 1fr;
   }
 }

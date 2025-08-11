@@ -32,6 +32,73 @@
     </header>
 
     <main class="main-content">
+        <!-- Table Creation Card -->
+        <div id="table-creation-card" class="card settings-card" style="display: none;">
+            <h2>Masa Oluştur</h2>
+            
+            <div class="form-group">
+                <label for="table-name" class="form-label">Masa Adı</label>
+                <input type="text" id="table-name" class="form-input" placeholder="Masa adı girin..." maxlength="30">
+            </div>
+
+            <div class="form-group">
+                <label for="table-password" class="form-label">Masa Şifresi</label>
+                <input type="password" id="table-password" class="form-input" placeholder="Şifre girin..." maxlength="20">
+            </div>
+
+            <div class="form-actions">
+                <button id="create-table-btn" class="btn btn-primary">
+                    <span class="icon">🏗️</span>
+                    Masa Oluştur
+                </button>
+                <button id="join-table-btn" class="btn btn-secondary">
+                    <span class="icon">🚪</span>
+                    Masaya Katıl
+                </button>
+                <button id="back-to-settings-btn" class="btn btn-ghost">
+                    <span class="icon">↩️</span>
+                    Geri
+                </button>
+            </div>
+        </div>
+
+        <!-- Join Table Card -->
+        <div id="join-table-card" class="card settings-card" style="display: none;">
+            <h2>Masaya Katıl</h2>
+            
+            <div class="form-group">
+                <label for="join-table-name" class="form-label">Masa Adı</label>
+                <input type="text" id="join-table-name" class="form-input" placeholder="Masa adı girin..." maxlength="30">
+            </div>
+
+            <div class="form-group">
+                <label for="join-table-password" class="form-label">Masa Şifresi</label>
+                <input type="password" id="join-table-password" class="form-input" placeholder="Şifre girin..." maxlength="20">
+            </div>
+
+            <div class="form-group">
+                <label for="player-number" class="form-label">Oyuncu Numarası</label>
+                <select id="player-number" class="form-select">
+                    <option value="">Seçiniz...</option>
+                    <option value="0">1. Oyuncu</option>
+                    <option value="1">2. Oyuncu</option>
+                    <option value="2">3. Oyuncu</option>
+                    <option value="3">4. Oyuncu</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button id="join-table-confirm-btn" class="btn btn-primary">
+                    <span class="icon">✅</span>
+                    Katıl
+                </button>
+                <button id="back-to-table-creation-btn" class="btn btn-ghost">
+                    <span class="icon">↩️</span>
+                    Geri
+                </button>
+            </div>
+        </div>
+
         <!-- Settings Card -->
         <div id="settings-card" class="card settings-card">
             <h2>Oyun Ayarları</h2>
@@ -88,6 +155,10 @@
                     <span class="icon">🎮</span>
                     Başlat
                 </button>
+                <button id="create-table-mode-btn" class="btn btn-secondary">
+                    <span class="icon">🏗️</span>
+                    Masa Oluştur
+                </button>
                 <button id="demo-btn" class="btn btn-ghost">
                     <span class="icon">📋</span>
                     Örnek Verilerle Doldur
@@ -108,6 +179,35 @@
 
         <!-- Game Table -->
         <div id="game-section" class="game-section" style="display: none;">
+            <!-- Player Status Blocks -->
+            <div id="player-status" class="player-status-container" style="display: none;">
+                <div class="card player-status-card">
+                    <h3>Oyuncu Durumu</h3>
+                    <div class="player-blocks">
+                        <div class="player-block" data-player="0">
+                            <div class="player-number">1.</div>
+                            <div class="player-name-status">Oyuncu 1</div>
+                            <div class="player-online-status offline">Çevrimdışı</div>
+                        </div>
+                        <div class="player-block" data-player="1">
+                            <div class="player-number">2.</div>
+                            <div class="player-name-status">Oyuncu 2</div>
+                            <div class="player-online-status offline">Çevrimdışı</div>
+                        </div>
+                        <div class="player-block" data-player="2">
+                            <div class="player-number">3.</div>
+                            <div class="player-name-status">Oyuncu 3</div>
+                            <div class="player-online-status offline">Çevrimdışı</div>
+                        </div>
+                        <div class="player-block" data-player="3">
+                            <div class="player-number">4.</div>
+                            <div class="player-name-status">Oyuncu 4</div>
+                            <div class="player-online-status offline">Çevrimdışı</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="card table-card">
                 <div class="table-header">
                     <h2>Skor Tablosu</h2>

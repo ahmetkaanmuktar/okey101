@@ -20,8 +20,16 @@ let state = {
   penalties: [],
   theme: 'light',
   startedAt: null,
-  gameStarted: false
+  gameStarted: false,
+  // Table management
+  currentTable: null,
+  currentPlayer: null,
+  isTableHost: false
 };
+
+// Table Management System
+const TABLE_STORAGE_KEY = 'okey-tables-v1';
+let tables = {};
 
 // DOM Elements
 let elements = {};
@@ -84,6 +92,159 @@ function sanitizeInput(value) {
   return numValue;
 }
 
+// Table Management Functions
+function loadTables() {
+  try {
+    const saved = localStorage.getItem(TABLE_STORAGE_KEY);
+    if (saved) {
+      tables = JSON.parse(saved);
+    }
+  } catch (error) {
+    console.error('Failed to load tables:', error);
+    tables = {};
+  }
+}
+
+function saveTables() {
+  try {
+    localStorage.setItem(TABLE_STORAGE_KEY, JSON.stringify(tables));
+  } catch (error) {
+    console.error('Failed to save tables:', error);
+  }
+}
+
+function generateTableId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
+function createTable(tableName, password) {
+  const tableId = generateTableId();
+  
+  tables[tableId] = {
+    id: tableId,
+    name: tableName,
+    password: password,
+    createdAt: new Date().toISOString(),
+    host: 0, // Player 0 is the host
+    players: {
+      0: { name: 'Oyuncu 1', online: true, isHost: true },
+      1: { name: 'Oyuncu 2', online: false, isHost: false },
+      2: { name: 'Oyuncu 3', online: false, isHost: false },
+      3: { name: 'Oyuncu 4', online: false, isHost: false }
+    },
+    gameState: {
+      settings: {
+        mode: 'solo4',
+        target: 11,
+        namesSolo4: ['Oyuncu 1', 'Oyuncu 2', 'Oyuncu 3', 'Oyuncu 4']
+      },
+      rows: [],
+      penalties: [],
+      startedAt: null,
+      gameStarted: false
+    },
+    lastActivity: new Date().toISOString()
+  };
+  
+  saveTables();
+  return tableId;
+}
+
+function joinTable(tableId, playerNumber, password) {
+  const table = tables[tableId];
+  
+  if (!table) {
+    throw new Error('Masa bulunamadı');
+  }
+  
+  if (table.password !== password) {
+    throw new Error('Yanlış şifre');
+  }
+  
+  if (table.players[playerNumber].online) {
+    throw new Error('Bu oyuncu pozisyonu zaten dolu');
+  }
+  
+  table.players[playerNumber].online = true;
+  table.lastActivity = new Date().toISOString();
+  
+  saveTables();
+  return table;
+}
+
+function leaveTable(tableId, playerNumber) {
+  const table = tables[tableId];
+  
+  if (table && table.players[playerNumber]) {
+    table.players[playerNumber].online = false;
+    table.lastActivity = new Date().toISOString();
+    
+    // If all players are offline, remove the table after 5 minutes
+    const allOffline = Object.values(table.players).every(player => !player.online);
+    if (allOffline) {
+      setTimeout(() => {
+        if (tables[tableId]) {
+          const currentTable = tables[tableId];
+          const stillAllOffline = Object.values(currentTable.players).every(player => !player.online);
+          if (stillAllOffline) {
+            delete tables[tableId];
+            saveTables();
+          }
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+    }
+    
+    saveTables();
+  }
+}
+
+function updateTableGameState(tableId, gameState) {
+  const table = tables[tableId];
+  
+  if (table) {
+    table.gameState = { ...gameState };
+    table.lastActivity = new Date().toISOString();
+    saveTables();
+    
+    // Simulate broadcasting to other players
+    broadcastTableUpdate(tableId);
+  }
+}
+
+function broadcastTableUpdate(tableId) {
+  // In a real implementation, this would use WebSocket
+  // For now, we'll simulate it with localStorage events
+  const event = new CustomEvent('tableUpdate', {
+    detail: { tableId, timestamp: Date.now() }
+  });
+  window.dispatchEvent(event);
+}
+
+function syncWithTable() {
+  if (!state.currentTable) return;
+  
+  const table = tables[state.currentTable];
+  if (table && table.gameState) {
+    // Update local state with table state
+    const tableState = table.gameState;
+    state.settings = { ...tableState.settings };
+    state.rows = [...tableState.rows];
+    state.penalties = [...tableState.penalties];
+    state.startedAt = tableState.startedAt;
+    state.gameStarted = tableState.gameStarted;
+    
+    // Update UI
+    if (state.gameStarted) {
+      renderTable();
+      updateTotals();
+      updateMilestone();
+      checkWinner();
+    }
+    
+    updatePlayerStatus();
+  }
+}
+
 // State Management
 function saveState() {
   try {
@@ -120,7 +281,11 @@ function resetState() {
     penalties: [],
     theme: state.theme, // Preserve theme
     startedAt: null,
-    gameStarted: false
+    gameStarted: false,
+    // Reset table management
+    currentTable: null,
+    currentPlayer: null,
+    isTableHost: false
   };
   saveState();
 }
@@ -363,60 +528,7 @@ function renderTable() {
     elements.tableBody.appendChild(tr);
   });
   
-  // Add current row if game not complete and no current row exists
-  if (!isGameComplete() && state.rows.length > 0) {
-    const currentHandNumber = getCurrentHandNumber();
-    const hasCurrentRow = state.rows.find(row => row.hand === currentHandNumber);
-    
-    if (!hasCurrentRow) {
-      // Add new row to state
-      state.rows.push({
-        hand: currentHandNumber,
-        values: new Array(participants.length).fill(null)
-      });
-      
-      // Render the new row
-      const tr = document.createElement('tr');
-      
-      // Hand number
-      const handTd = document.createElement('td');
-      handTd.innerHTML = `<div class="hand-number">${currentHandNumber}</div>`;
-      tr.appendChild(handTd);
-      
-      // Score cells
-      participants.forEach((participantId, colIndex) => {
-        const td = document.createElement('td');
-        td.className = 'score-cell';
-        
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.className = 'score-input';
-        input.min = '-101';
-        input.max = '999';
-        input.step = '1';
-        input.value = '';
-        input.dataset.row = state.rows.length - 1;
-        input.dataset.col = colIndex;
-        
-        input.addEventListener('input', handleScoreInput);
-        input.addEventListener('keydown', handleScoreKeydown);
-        
-        // -101 button
-        const minus101Btn = document.createElement('button');
-        minus101Btn.className = 'minus-101-btn';
-        minus101Btn.textContent = '-101';
-        minus101Btn.dataset.row = state.rows.length - 1;
-        minus101Btn.dataset.col = colIndex;
-        minus101Btn.onclick = handleMinus101Click;
-        
-        td.appendChild(input);
-        td.appendChild(minus101Btn);
-        tr.appendChild(td);
-      });
-      
-      elements.tableBody.appendChild(tr);
-    }
-  }
+  // This logic is now handled in handleScoreInput when row is completed
 }
 
 function addNewRow() {
@@ -514,6 +626,44 @@ function checkWinner() {
   }
 }
 
+function updatePlayerStatus() {
+  if (!state.currentTable || !elements.playerStatus) {
+    return;
+  }
+  
+  const table = tables[state.currentTable];
+  if (!table) return;
+  
+  // Show player status section
+  elements.playerStatus.style.display = 'block';
+  
+  // Update each player block
+  for (let i = 0; i < 4; i++) {
+    const playerBlock = document.querySelector(`.player-block[data-player="${i}"]`);
+    if (playerBlock) {
+      const player = table.players[i];
+      const nameElement = playerBlock.querySelector('.player-name-status');
+      const statusElement = playerBlock.querySelector('.player-online-status');
+      
+      nameElement.textContent = player.name;
+      
+      if (i === state.currentPlayer) {
+        statusElement.textContent = 'Sen';
+        statusElement.className = 'player-online-status current';
+        playerBlock.classList.add('current-player');
+      } else if (player.online) {
+        statusElement.textContent = 'Çevrimiçi';
+        statusElement.className = 'player-online-status online';
+        playerBlock.classList.remove('current-player');
+      } else {
+        statusElement.textContent = 'Çevrimdışı';
+        statusElement.className = 'player-online-status offline';
+        playerBlock.classList.remove('current-player');
+      }
+    }
+  }
+}
+
 // Event Handlers
 function handleScoreInput(event) {
   const input = event.target;
@@ -558,14 +708,38 @@ function handleScoreInput(event) {
   saveState();
   updateTotals();
   
+  // Sync with table if in table mode
+  if (state.currentTable) {
+    updateTableGameState(state.currentTable, {
+      settings: state.settings,
+      rows: state.rows,
+      penalties: state.penalties,
+      startedAt: state.startedAt,
+      gameStarted: state.gameStarted
+    });
+  }
+  
   // Check if row is complete
   const currentRow = state.rows[rowIndex];
   if (isRowComplete(currentRow)) {
     updateMilestone();
     checkWinner();
     
-    // Don't add new row here - renderTable will handle it
-    // Just re-render to show the current state
+    // Only add new row if game is not complete
+    if (!isGameComplete()) {
+      // Add new row for next hand
+      const nextHandNumber = getCurrentHandNumber();
+      const hasNextRow = state.rows.find(row => row.hand === nextHandNumber);
+      
+      if (!hasNextRow) {
+        state.rows.push({
+          hand: nextHandNumber,
+          values: new Array(getParticipants().length).fill(null)
+        });
+      }
+    }
+    
+    // Re-render to show the updated state
     renderTable();
   }
 }
@@ -697,13 +871,25 @@ function handleNewGame() {
     }
   }
   
+  // Leave current table if in one
+  if (state.currentTable && state.currentPlayer !== null) {
+    leaveTable(state.currentTable, state.currentPlayer);
+  }
+  
   resetState();
   
-  // Show settings, hide game
+  // Show settings, hide all other cards
   elements.settingsCard.style.display = 'block';
   elements.gameSection.style.display = 'none';
+  elements.tableCreationCard.style.display = 'none';
+  elements.joinTableCard.style.display = 'none';
   elements.milestoneBanner.style.display = 'none';
   elements.winnerBanner.style.display = 'none';
+  
+  // Hide player status
+  if (elements.playerStatus) {
+    elements.playerStatus.style.display = 'none';
+  }
   
   populateSettingsForm();
 }
@@ -968,6 +1154,165 @@ function handlePenaltyQuickBtn(event) {
   elements.penaltyValue.value = value;
 }
 
+// Table Event Handlers
+function handleCreateTableMode() {
+  elements.settingsCard.style.display = 'none';
+  elements.tableCreationCard.style.display = 'block';
+  elements.tableName.focus();
+}
+
+function handleJoinTableMode() {
+  elements.tableCreationCard.style.display = 'none';
+  elements.joinTableCard.style.display = 'block';
+  elements.joinTableName.focus();
+}
+
+function handleBackToSettings() {
+  elements.tableCreationCard.style.display = 'none';
+  elements.settingsCard.style.display = 'block';
+}
+
+function handleBackToTableCreation() {
+  elements.joinTableCard.style.display = 'none';
+  elements.tableCreationCard.style.display = 'block';
+}
+
+function handleCreateTable() {
+  const tableName = elements.tableName.value.trim();
+  const password = elements.tablePassword.value.trim();
+  
+  if (!tableName) {
+    alert('Lütfen masa adı girin.');
+    elements.tableName.focus();
+    return;
+  }
+  
+  if (!password) {
+    alert('Lütfen şifre girin.');
+    elements.tablePassword.focus();
+    return;
+  }
+  
+  try {
+    const tableId = createTable(tableName, password);
+    
+    // Set current table and player
+    state.currentTable = tableId;
+    state.currentPlayer = 0; // Host is player 0
+    state.isTableHost = true;
+    
+    // Update player names from table
+    const table = tables[tableId];
+    state.settings.namesSolo4 = [
+      table.players[0].name,
+      table.players[1].name,
+      table.players[2].name,
+      table.players[3].name
+    ];
+    
+    // Hide table creation, show game
+    elements.tableCreationCard.style.display = 'none';
+    elements.gameSection.style.display = 'block';
+    
+    // Show player status
+    updatePlayerStatus();
+    
+    // Start the game automatically for table host
+    state.gameStarted = true;
+    state.startedAt = new Date().toISOString();
+    state.rows = [{
+      hand: 1,
+      values: new Array(4).fill(null)
+    }];
+    
+    renderTable();
+    updateTotals();
+    saveState();
+    
+    // Update table state
+    updateTableGameState(tableId, {
+      settings: state.settings,
+      rows: state.rows,
+      penalties: state.penalties,
+      startedAt: state.startedAt,
+      gameStarted: state.gameStarted
+    });
+    
+    alert(`Masa "${tableName}" oluşturuldu! Masa ID: ${tableId}`);
+    
+    // Focus first input
+    setTimeout(() => {
+      const firstInput = elements.tableBody.querySelector('input[data-row="0"][data-col="0"]');
+      if (firstInput) {
+        firstInput.focus();
+      }
+    }, 100);
+    
+  } catch (error) {
+    alert('Masa oluşturulurken hata: ' + error.message);
+  }
+}
+
+function handleJoinTable() {
+  const tableName = elements.joinTableName.value.trim();
+  const password = elements.joinTablePassword.value.trim();
+  const playerNumber = parseInt(elements.playerNumber.value);
+  
+  if (!tableName) {
+    alert('Lütfen masa adı girin.');
+    elements.joinTableName.focus();
+    return;
+  }
+  
+  if (!password) {
+    alert('Lütfen şifre girin.');
+    elements.joinTablePassword.focus();
+    return;
+  }
+  
+  if (isNaN(playerNumber)) {
+    alert('Lütfen oyuncu numarası seçin.');
+    elements.playerNumber.focus();
+    return;
+  }
+  
+  try {
+    // Find table by name
+    const tableId = Object.keys(tables).find(id => 
+      tables[id].name.toLowerCase() === tableName.toLowerCase()
+    );
+    
+    if (!tableId) {
+      alert('Masa bulunamadı.');
+      return;
+    }
+    
+    const table = joinTable(tableId, playerNumber, password);
+    
+    // Set current table and player
+    state.currentTable = tableId;
+    state.currentPlayer = playerNumber;
+    state.isTableHost = false;
+    
+    // Sync with table state
+    syncWithTable();
+    
+    // Hide join table, show game
+    elements.joinTableCard.style.display = 'none';
+    elements.gameSection.style.display = 'block';
+    
+    // Show player status
+    updatePlayerStatus();
+    
+    saveState();
+    
+    alert(`"${tableName}" masasına katıldınız!`);
+    
+  } catch (error) {
+    alert('Masaya katılırken hata: ' + error.message);
+  }
+}
+
 // Initialize App
 function initializeElements() {
   elements = {
@@ -983,7 +1328,27 @@ function initializeElements() {
     settingsCard: document.getElementById('settings-card'),
     targetSelect: document.getElementById('target-select'),
     startGameBtn: document.getElementById('start-game-btn'),
+    createTableModeBtn: document.getElementById('create-table-mode-btn'),
     demoBtn: document.getElementById('demo-btn'),
+    
+    // Table Creation
+    tableCreationCard: document.getElementById('table-creation-card'),
+    tableName: document.getElementById('table-name'),
+    tablePassword: document.getElementById('table-password'),
+    createTableBtn: document.getElementById('create-table-btn'),
+    joinTableBtn: document.getElementById('join-table-btn'),
+    backToSettingsBtn: document.getElementById('back-to-settings-btn'),
+    
+    // Join Table
+    joinTableCard: document.getElementById('join-table-card'),
+    joinTableName: document.getElementById('join-table-name'),
+    joinTablePassword: document.getElementById('join-table-password'),
+    playerNumber: document.getElementById('player-number'),
+    joinTableConfirmBtn: document.getElementById('join-table-confirm-btn'),
+    backToTableCreationBtn: document.getElementById('back-to-table-creation-btn'),
+    
+    // Player Status
+    playerStatus: document.getElementById('player-status'),
     
     // Names
     namesSolo4: document.getElementById('names-solo4'),
@@ -1035,7 +1400,17 @@ function initializeEventListeners() {
   
   // Settings
   elements.startGameBtn.addEventListener('click', handleStartGame);
+  elements.createTableModeBtn.addEventListener('click', handleCreateTableMode);
   elements.demoBtn.addEventListener('click', handleDemo);
+  
+  // Table Creation
+  elements.createTableBtn.addEventListener('click', handleCreateTable);
+  elements.joinTableBtn.addEventListener('click', handleJoinTableMode);
+  elements.backToSettingsBtn.addEventListener('click', handleBackToSettings);
+  
+  // Join Table
+  elements.joinTableConfirmBtn.addEventListener('click', handleJoinTable);
+  elements.backToTableCreationBtn.addEventListener('click', handleBackToTableCreation);
   
   // Mode change
   document.querySelectorAll('input[name="mode"]').forEach(radio => {
@@ -1088,14 +1463,26 @@ function initializeEventListeners() {
       }
     }
   });
+  
+  // Table update listener
+  window.addEventListener('tableUpdate', (event) => {
+    if (state.currentTable && event.detail.tableId === state.currentTable) {
+      // Don't sync if we just triggered this update
+      const timeDiff = Date.now() - event.detail.timestamp;
+      if (timeDiff > 100) { // Only sync if update is older than 100ms
+        syncWithTable();
+      }
+    }
+  });
 }
 
 function initialize() {
   initializeElements();
   initializeEventListeners();
   
-  // Load saved state
+  // Load saved state and tables
   loadState();
+  loadTables();
   
   // Update UI
   updateTheme();
@@ -1109,9 +1496,16 @@ function initialize() {
     updateTotals();
     updateMilestone();
     checkWinner();
+    
+    // Update player status if in table mode
+    if (state.currentTable) {
+      updatePlayerStatus();
+    }
   } else {
     elements.settingsCard.style.display = 'block';
     elements.gameSection.style.display = 'none';
+    elements.tableCreationCard.style.display = 'none';
+    elements.joinTableCard.style.display = 'none';
   }
   
   console.log('Okey Adisyon uygulaması başlatıldı!');
